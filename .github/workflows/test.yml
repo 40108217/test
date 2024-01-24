@@ -1,0 +1,58 @@
+name: Terraform Deployment to management AWS Account
+env:
+  #AWS_AccountID: 016690563450 #NPE Account
+  AWS_AccountID: "016646055321"
+  AWS_IAMrole: "tmo_devops_gitctl_role"
+  ROOT_PATH: './gitlab_prd/workload1'
+on:
+  push:
+    branches:
+      - main  #Change to your branch name
+    tags:
+      - deploy-to-nw
+    paths:
+      - gitlab_prd/workload1/**
+    
+jobs:
+  env-configure:
+    runs-on: TMO-GIT-RUNNER01
+    env:
+        steps.run.outputs: false
+    steps:
+      - uses: actions/checkout@v3
+      - name: Cleanup AWS credentials
+        run: rm -f ~/.aws/credentials
+      - name: Setup AWS credentials 
+        run: bash /home/runner/assume-role.sh ${{ env.AWS_AccountID }} ${{ env.AWS_IAMrole }}  > /tmp/aws_credentials
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with: 
+          auto-approve: true
+      - name: Init Terraform changes
+        run: /usr/bin/terraform init
+        working-directory: ${{ env.ROOT_PATH }}
+      - name: Plan Terraform changes
+        run: /usr/bin/terraform plan
+        working-directory: ${{ env.ROOT_PATH }}
+
+    
+    
+    
+   
+  terraform_apply:
+    name: 'terraform apply'
+    needs: [env-configure]
+    runs-on: TMO-GIT-RUNNER01
+    environment: aws_us_gov
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+    - name: Initialize Terraform
+      run: /usr/bin/terraform init
+      working-directory: ${{ env.ROOT_PATH }}
+    - name: Apply Terraform changes
+      run: /usr/bin/terraform apply -auto-approve
+      working-directory: ${{ env.ROOT_PATH }}
+      
+    - name: Cleanup AWS credentials
+      run: rm -f ~/.aws/credentials
